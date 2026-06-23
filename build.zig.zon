@@ -1,0 +1,24 @@
+.{
+    .name = .markdown,
+    .version = "0.0.1",
+    .fingerprint = 0x96be88e362fd1fdf,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        // Fizzy shell SDK + build helpers (`fizzy.plugin.*`). Pin to PR #186 until merged.
+        .fizzy = .{
+            .url = "git+https://github.com/fizzyedit/fizzy#0524e88e7b732bee64c82e0bbb390cd5bcf6b298",
+            .hash = "fizzy-0.0.20-c46aVnyMUQAVnDiHB_OTV-FiTVYt8rOTBPLM1JC_JYS_",
+            //.path = "../../fizzy",
+        },
+        .cmark_gfm = .{
+            .url = "git+https://github.com/kristoff-it/cmark-gfm#cd0aba87cc89f0c8aa9393e59505db271ea30239",
+            .hash = "cmark_gfm-0.1.0-uQgTKymaFwDK0jVZszXfDtQtW6BnS44Bp0GS55TVBD4p",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "root.zig",
+        "src",
+    },
+}
