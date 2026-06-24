@@ -1,3 +1,6 @@
+//! Standalone build for the markdown plugin — the canonical third-party shape.
+//! `zig build` produces `markdown.<dylib|dll|so>`. Install with
+//! `--prefix <plugins-dir>/markdown`.
 const std = @import("std");
 const fizzy = @import("fizzy");
 
@@ -6,9 +9,9 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const lib = fizzy.plugin.create(b, .{
+        .name = "markdown",
         .target = target,
         .optimize = optimize,
-        .root_source_file = b.path("root.zig"),
     });
 
     const cmark_gfm = b.dependency("cmark_gfm", .{ .target = target, .optimize = optimize });
@@ -18,7 +21,5 @@ pub fn build(b: *std.Build) void {
     lib.root_module.addIncludePath(cmark_gfm.path("extensions"));
     lib.root_module.addIncludePath(b.path("src/md"));
 
-    // Installs `<prefix>/plugin.dylib` (the name the host loader scans for). Install with
-    // `--prefix <plugins-dir>/markdown`. No shell `cp`/`mkdir` — works on every host.
     fizzy.plugin.install(b, lib, .{});
 }

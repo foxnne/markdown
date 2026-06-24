@@ -1,11 +1,18 @@
 //! Markdown editor plugin: split source/preview for `.md` files.
 const std = @import("std");
-const sdk = @import("sdk");
-const dvui = @import("dvui");
-const State = @import("State.zig");
-const Document = @import("Document.zig");
-const MarkdownEditor = @import("MarkdownEditor.zig");
+const markdown = @import("../markdown.zig");
+const sdk = markdown.sdk;
+const dvui = markdown.dvui;
+const State = markdown.State;
+const Document = markdown.Document;
+const MarkdownEditor = markdown.MarkdownEditor;
 const DocHandle = sdk.DocHandle;
+
+pub const manifest = sdk.PluginManifest{
+    .id = "markdown",
+    .name = "Markdown",
+    .version = .{ .major = 0, .minor = 0, .patch = 1 },
+};
 
 var plugin: sdk.Plugin = .{
     .state = undefined,
@@ -32,6 +39,7 @@ const vtable: sdk.Plugin.VTable = .{
     .setDocumentGrouping = setDocumentGrouping,
     .documentPath = documentPath,
     .setDocumentPath = setDocumentPath,
+    .bindDocumentToPane = bindDocumentToPane,
     .documentHasNativeExtension = documentHasNativeExtension,
     .documentHasRecognizedSaveExtension = documentHasRecognizedSaveExtension,
     .drawDocument = drawDocument,
@@ -42,12 +50,18 @@ const vtable: sdk.Plugin.VTable = .{
     .documentDefaultSaveAsFilename = documentDefaultSaveAsFilename,
 };
 
-/// The plugin's singleton state. The host injects the allocator/`*Host` into the SDK
-/// (`sdk.allocator()` / `sdk.host()`), so this is all the per-plugin storage we need.
-var plugin_state: State = .{};
+comptime {
+    sdk.Plugin.assertEditorVTable(vtable);
+}
 
 pub fn register(host: *sdk.Host) !void {
-    plugin.state = @ptrCast(&plugin_state);
+    const gpa = host.allocator;
+
+    const st = try gpa.create(State);
+    errdefer gpa.destroy(st);
+    st.* = .{};
+    plugin.state = @ptrCast(st);
+
     try host.registerPlugin(&plugin);
     try host.registerMenuSection(.{
         .id = "markdown.menu.view.example",
@@ -61,8 +75,11 @@ pub fn pluginPtr() *sdk.Plugin {
     return &plugin;
 }
 
-fn deinit(_: *anyopaque) void {
-    plugin_state.deinit(sdk.allocator());
+fn deinit(state: *anyopaque) void {
+    const st: *State = @ptrCast(@alignCast(state));
+    const gpa = sdk.allocator();
+    st.deinit(gpa);
+    gpa.destroy(st);
 }
 
 fn fileTypePriority(_: *anyopaque, ext: []const u8) ?u8 {
@@ -78,10 +95,10 @@ fn documentStackAlign(_: *anyopaque) usize {
     return @alignOf(Document);
 }
 fn loadDocument(_: *anyopaque, path: []const u8, out_doc: *anyopaque) anyerror!void {
-    docBuf(out_doc).* = try Document.fromPath(path);
+    try sdk.document.loadPathInto(Document, path, docBuf(out_doc));
 }
 fn loadDocumentFromBytes(_: *anyopaque, path: []const u8, bytes: []const u8, out_doc: *anyopaque) anyerror!void {
-    docBuf(out_doc).* = try Document.fromBytes(path, bytes);
+    try sdk.document.loadBytesInto(Document, path, bytes, docBuf(out_doc));
 }
 fn setDocumentGroupingOnBuffer(_: *anyopaque, doc: *anyopaque, grouping: u64) void {
     docBuf(doc).grouping = grouping;
@@ -128,6 +145,9 @@ fn setDocumentPath(_: *anyopaque, handle: DocHandle, path: []const u8) anyerror!
     gpa.free(doc.path);
     doc.path = new_path;
 }
+fn bindDocumentToPane(_: *anyopaque, _: DocHandle, _: dvui.Id, _: *anyopaque, _: bool) void {
+    // Text editing needs no pane/canvas binding; the text widget manages its own state.
+}
 fn documentHasNativeExtension(_: *anyopaque, _: DocHandle) bool {
     return true;
 }
@@ -170,5 +190,6 @@ fn docBuf(buf: *anyopaque) *Document {
     return @ptrCast(@alignCast(buf));
 }
 fn docFrom(handle: DocHandle) ?*Document {
-    return plugin_state.docById(handle.id);
+    const st: *State = @ptrCast(@alignCast(plugin.state));
+    return st.docById(handle.id);
 }
